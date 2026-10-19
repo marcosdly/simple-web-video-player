@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="A simple video player for the browser.">
+    <title>Web Video Player</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: system-ui, sans-serif;
+        background: #111;
+        color: #f5f5f5;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-width: 320px;
+        min-height: 100vh;
+        margin: 0;
+      }
+
+      .player {
+        width: min(100%, 960px);
+        margin: 0 auto;
+        padding: 24px;
+      }
+
+      h1 {
+        margin: 0 0 20px;
+        font-size: 1.4rem;
+      }
+
+      .url-form {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+
+      input,
+      button {
+        min-height: 42px;
+        border: 1px solid #555;
+        border-radius: 6px;
+        font: inherit;
+      }
+
+      input {
+        min-width: 0;
+        padding: 8px 12px;
+        background: #1c1c1c;
+        color: inherit;
+      }
+
+      .url-form input {
+        flex: 1;
+      }
+
+      button {
+        padding: 8px 14px;
+        background: #292929;
+        color: inherit;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background: #3a3a3a;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+
+      .file-picker {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        min-height: 42px;
+        padding: 8px 14px;
+        overflow: hidden;
+        border: 1px solid #555;
+        border-radius: 6px;
+        background: #292929;
+        cursor: pointer;
+      }
+
+      .file-picker:hover {
+        background: #3a3a3a;
+      }
+
+      .file-picker input {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        opacity: 0;
+        cursor: pointer;
+      }
+
+      .message {
+        min-height: 1.5em;
+        margin: 0 0 12px;
+        color: #bbb;
+      }
+
+      .message[data-error="true"] {
+        color: #ff9999;
+      }
+
+      video {
+        display: block;
+        width: 100%;
+        max-height: calc(100vh - 220px);
+        min-height: 180px;
+        background: #000;
+        object-fit: contain;
+      }
+
+      .hint {
+        margin: 12px 0 0;
+        color: #aaa;
+        font-size: 0.9rem;
+      }
+
+      body.video-only {
+        overflow: hidden;
+        background: #000;
+      }
+
+      .video-only .player {
+        width: 100%;
+        height: 100vh;
+        padding: 0;
+      }
+
+      .video-only .interface {
+        display: none;
+      }
+
+      .video-only video {
+        width: 100%;
+        height: 100%;
+        max-height: none;
+        min-height: 0;
+      }
+
+      @media (max-width: 520px) {
+        .player {
+          padding: 16px;
+        }
+
+        .url-form {
+          flex-direction: column;
+        }
+
+        video {
+          min-height: 200px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="player">
+      <section class="interface" aria-label="Player options">
+        <h1>Web Video Player</h1>
+        <form class="url-form" id="url-form">
+          <label for="video-url" hidden>Video URL</label>
+          <input id="video-url" type="url" placeholder="Paste a direct video URL" autocomplete="url">
+          <button type="submit">Open URL</button>
+        </form>
+        <div class="actions">
+          <label class="file-picker">
+            <span>Choose a video file</span>
+            <input id="video-file" type="file" accept="video/*">
+          </label>
+          <button id="video-only-button" type="button" aria-pressed="false">Video only</button>
+        </div>
+        <p class="message" id="message" role="status" aria-live="polite">Choose a video file or paste a direct video URL.</p>
+        <p class="hint">In video-only mode, press Escape to show the player options again.</p>
+      </section>
+      <video id="video" controls playsinline preload="metadata"></video>
+    </main>
+    <script>
+      const video = document.querySelector("#video");
+      const message = document.querySelector("#message");
+      const urlInput = document.querySelector("#video-url");
+      const fileInput = document.querySelector("#video-file");
+      const videoOnlyButton = document.querySelector("#video-only-button");
+      let localVideoUrl = null;
+
+      function setVideoSource(source, label, sourceObjectUrl = null) {
+        if (localVideoUrl) {
+          URL.revokeObjectURL(localVideoUrl);
+        }
+
+        localVideoUrl = sourceObjectUrl;
+        video.src = source;
+        video.load();
+        message.textContent = `Loading ${label}...`;
+        message.dataset.error = "false";
+      }
+
+      document.querySelector("#url-form").addEventListener("submit", (event) => {
+        event.preventDefault();
+        const source = urlInput.value.trim();
+
+        if (!source) {
+          message.textContent = "Enter a direct video URL first.";
+          message.dataset.error = "true";
+          return;
+        }
+
+        setVideoSource(source, source);
+        const pageUrl = new URL(window.location.href);
+        pageUrl.searchParams.set("src", source);
+        window.history.replaceState(null, "", pageUrl);
+      });
+
+      fileInput.addEventListener("change", () => {
+        const file = fileInput.files[0];
+        if (!file) return;
+
+        const sourceObjectUrl = URL.createObjectURL(file);
+        setVideoSource(sourceObjectUrl, file.name, sourceObjectUrl);
+        const pageUrl = new URL(window.location.href);
+        pageUrl.searchParams.delete("src");
+        window.history.replaceState(null, "", pageUrl);
+      });
+
+      video.addEventListener("loadedmetadata", () => {
+        message.textContent = "";
+      });
+
+      video.addEventListener("error", () => {
+        if (!video.currentSrc) return;
+        message.textContent = "Could not load this video. Check the URL or choose a supported video file.";
+        message.dataset.error = "true";
+      });
+
+      function setVideoOnly(enabled) {
+        document.body.classList.toggle("video-only", enabled);
+        videoOnlyButton.setAttribute("aria-pressed", String(enabled));
+      }
+
+      videoOnlyButton.addEventListener("click", () => {
+        setVideoOnly(!document.body.classList.contains("video-only"));
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") setVideoOnly(false);
+      });
+
+      window.addEventListener("beforeunload", () => {
+        if (localVideoUrl) URL.revokeObjectURL(localVideoUrl);
+      });
+
+      const initialSource = new URLSearchParams(window.location.search).get("src");
+      if (initialSource) {
+        urlInput.value = initialSource;
+        setVideoSource(initialSource, initialSource);
+      }
+    </script>
+  </body>
+</html>
